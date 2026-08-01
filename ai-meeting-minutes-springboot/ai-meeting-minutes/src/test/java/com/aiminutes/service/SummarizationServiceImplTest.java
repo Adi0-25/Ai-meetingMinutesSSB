@@ -4,7 +4,6 @@ import com.aiminutes.dto.SummarizeResponse;
 import com.aiminutes.service.impl.SummarizationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,9 +15,8 @@ class SummarizationServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        summarizationService = new SummarizationServiceImpl(new RestTemplate());
-        // No OpenAI API key configured -> exercises the offline fallback summarizer.
-        ReflectionTestUtils.setField(summarizationService, "apiKey", "");
+        OpenAiKeyPool emptyKeyPool = new OpenAiKeyPool("");
+        summarizationService = new SummarizationServiceImpl(new RestTemplate(), emptyKeyPool);
     }
 
     @Test
