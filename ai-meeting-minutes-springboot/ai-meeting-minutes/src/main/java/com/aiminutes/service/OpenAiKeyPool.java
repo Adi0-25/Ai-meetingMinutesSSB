@@ -14,7 +14,7 @@ public class OpenAiKeyPool {
 
     private final List<String> keys;
 
-    public OpenAiKeyPool(@Value("${openai.api-keys:}") String rawKeys) {
+    public OpenAiKeyPool(@Value("${groq.api-keys:}") String rawKeys) {
         List<String> parsed = new ArrayList<>();
         if (rawKeys != null && !rawKeys.isBlank()) {
             for (String key : rawKeys.split(",")) {
