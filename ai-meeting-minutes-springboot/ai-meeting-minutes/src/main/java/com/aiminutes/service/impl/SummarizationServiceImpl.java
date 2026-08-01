@@ -1,6 +1,7 @@
 package com.aiminutes.service.impl;
 
 import com.aiminutes.dto.SummarizeResponse;
+import com.aiminutes.service.OpenAiKeyPool;
 import com.aiminutes.service.SummarizationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -23,16 +25,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/**
- * Generates professional meeting minutes from a raw transcript.
- * <p>
- * Primary path: calls OpenAI's Chat Completions API (equivalent in spirit to the local
- * Qwen LLM used by the original Python prototype) when {@code OPENAI_API_KEY} is configured.
- * <p>
- * Fallback path: if no API key is configured, or the OpenAI call fails for any reason, this
- * service degrades gracefully to a fully offline, keyword/heuristic based summarizer so the
- * application still produces usable minutes with zero external dependencies or cost.
- */
 @Service
 public class SummarizationServiceImpl implements SummarizationService {
 
@@ -45,16 +37,15 @@ public class SummarizationServiceImpl implements SummarizationService {
     );
 
     private final RestTemplate restTemplate;
+    private final OpenAiKeyPool keyPool;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @Value("${openai.api-key:}")
-    private String apiKey;
 
     @Value("${openai.model.chat:gpt-4o-mini}")
     private String chatModel;
 
-    public SummarizationServiceImpl(RestTemplate restTemplate) {
+    public SummarizationServiceImpl(RestTemplate restTemplate, OpenAiKeyPool keyPool) {
         this.restTemplate = restTemplate;
+        this.keyPool = keyPool;
     }
 
     @Override
@@ -63,7 +54,7 @@ public class SummarizationServiceImpl implements SummarizationService {
             return new SummarizeResponse("", targetLanguage);
         }
 
-        if (apiKey != null && !apiKey.isBlank()) {
+        if (keyPool.hasKeys()) {
             try {
                 return summarizeWithOpenAi(text, targetLanguage);
             } catch (Exception e) {
@@ -75,10 +66,6 @@ public class SummarizationServiceImpl implements SummarizationService {
     }
 
     private SummarizeResponse summarizeWithOpenAi(String text, String targetLanguage) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
-
         String languageInstruction = "en".equalsIgnoreCase(targetLanguage)
                 ? ""
                 : " Respond entirely in the language with ISO code '" + targetLanguage + "'.";
@@ -98,16 +85,34 @@ public class SummarizationServiceImpl implements SummarizationService {
                 Map.of("role", "user", "content", userPrompt)
         ));
 
-        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(CHAT_URL, requestEntity, String.class);
+        List<String> keys = keyPool.getKeys();
+        Exception lastFailure = null;
 
-        try {
-            JsonNode root = objectMapper.readTree(response.getBody());
-            String content = root.path("choices").get(0).path("message").path("content").asText("");
-            return new SummarizeResponse(content.trim(), targetLanguage);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not parse the OpenAI response", e);
+        for (int i = 0; i < keys.size(); i++) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(keys.get(i));
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            try {
+                ResponseEntity<String> response = restTemplate.postForEntity(CHAT_URL, requestEntity, String.class);
+                JsonNode root = objectMapper.readTree(response.getBody());
+                String content = root.path("choices").get(0).path("message").path("content").asText("");
+                return new SummarizeResponse(content.trim(), targetLanguage);
+            } catch (HttpClientErrorException e) {
+                lastFailure = e;
+                boolean canRetryNextKey = keyPool.isKeyLevelFailure(e) && i < keys.size() - 1;
+                if (!canRetryNextKey) {
+                    throw new RuntimeException("OpenAI summarization request failed: " + e.getStatusCode(), e);
+                }
+                System.err.println("OpenAI key #" + (i + 1) + " failed with " + e.getStatusCode()
+                        + ", trying next key for summarization...");
+            } catch (Exception e) {
+                throw new RuntimeException("Could not parse the OpenAI response", e);
+            }
         }
+
+        throw new RuntimeException("All configured OpenAI API keys failed for summarization.", lastFailure);
     }
 
     private SummarizeResponse summarizeLocally(String text, String targetLanguage) {
