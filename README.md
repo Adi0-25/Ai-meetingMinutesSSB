@@ -5,11 +5,7 @@ An AI-powered web app that turns a meeting recording into a polished, profession
 meeting minutes: upload or record audio → automatic speech-to-text transcription → AI-generated
 Executive Summary, Key Discussion Points, Decisions Made, and Action Items — exportable as a PDF.
 
-This is a full Java/Spring Boot rewrite of an original Python/Flask + faster-whisper prototype,
-redesigned as a layered REST backend with a persistent meeting history, backed by the same
-glassmorphism-styled HTML/CSS/JS frontend.
-
-## ✨ Features
+## Features
 
 - 🎙️ **Audio ingestion** — drag & drop upload or live in-browser microphone recording
 - 📝 **Speech-to-text transcription** via the OpenAI Whisper API
@@ -71,7 +67,7 @@ ai-meeting-minutes/
 │   └── test/java/com/aiminutes/    # Unit & controller tests
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -150,8 +146,3 @@ All configuration lives in `src/main/resources/application.properties`:
 
 MIT — see [LICENSE](LICENSE).
 
----
-
-*Originally prototyped in Python (Flask + faster-whisper + a local Qwen LLM); rebuilt from the
-ground up in Java and Spring Boot with a persistent history feature, layered service architecture,
-and a graceful offline fallback for summarization.*
