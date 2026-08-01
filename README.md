@@ -8,10 +8,10 @@ Executive Summary, Key Discussion Points, Decisions Made, and Action Items — e
 ## Features
 
 - 🎙️ **Audio ingestion** — drag & drop upload or live in-browser microphone recording
-- 📝 **Speech-to-text transcription** via the OpenAI Whisper API
+- 📝 **Speech-to-text transcription** via the OpenAI/Groq Whisper API
 - 🤖 **AI-generated meeting minutes** (Executive Summary, Key Discussion Points, Decisions,
   Action Items) via OpenAI GPT, formatted as Markdown
-- 🛡️ **Offline fallback summarizer** — if no OpenAI API key is configured (or a request fails),
+- 🛡️ **Offline fallback summarizer** — if no OpenAI/Groq API key is configured (or a request fails),
   the app automatically degrades to a self-contained, keyword/heuristic-based Java summarizer,
   so the project still runs and produces usable output with zero external dependencies or cost
 - 🌍 **Multi-language output** — translate the generated minutes into Spanish, French, German,
@@ -31,8 +31,8 @@ Browser (HTML/CSS/JS)
       ▼
 Spring Boot REST API  (controller → service → repository)
       │                              │
-      ├── TranscriptionService ──────┼──▶ OpenAI Whisper API
-      ├── SummarizationService ──────┼──▶ OpenAI Chat Completions API
+      ├── TranscriptionService ──────┼──▶ OpenAI/Groq Whisper API
+      ├── SummarizationService ──────┼──▶ OpenAI/Groq Chat Completions API
       │        └── falls back to a local extractive/keyword summarizer
       └── MeetingService ────────────┴──▶ Spring Data JPA ──▶ H2 (file-based)
 ```
